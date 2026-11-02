@@ -24,6 +24,7 @@ export default function App() {
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [clearing, setClearing] = useState(false);
+  const [leaving, setLeaving] = useState([]);
 
   const run = async (action) => {
     setError('');
@@ -56,10 +57,18 @@ export default function App() {
       setTodos((prev) => prev.map((t) => (t.id === id ? updated : t)));
     });
 
+  // Plays the row-out animation (0.2s in index.html) before the rows leave the list.
+  const dropRows = async (ids) => {
+    setLeaving((prev) => [...prev, ...ids]);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    setTodos((prev) => prev.filter((t) => !ids.includes(t.id)));
+    setLeaving((prev) => prev.filter((id) => !ids.includes(id)));
+  };
+
   const remove = (id) =>
     run(async () => {
       await request(`/${id}`, 'DELETE');
-      setTodos((prev) => prev.filter((t) => t.id !== id));
+      await dropRows([id]);
     });
 
   const clearDone = async () => {
@@ -70,7 +79,7 @@ export default function App() {
       // Some deletes can fail: keep those rows on screen and drop only the ones that went through.
       const results = await Promise.allSettled(ids.map((id) => request(`/${id}`, 'DELETE')));
       const deleted = ids.filter((_, i) => results[i].status === 'fulfilled');
-      setTodos((prev) => prev.filter((t) => !deleted.includes(t.id)));
+      await dropRows(deleted);
       if (deleted.length < ids.length) throw new Error(`${ids.length - deleted.length}개를 삭제하지 못했어요.`);
     });
     setClearing(false);
@@ -108,16 +117,16 @@ export default function App() {
       <form onSubmit={add}>
         <input
           aria-label="새 할 일"
-          placeholder="할 일을 입력하세요"
+          placeholder="새로운 할 일을 적어 보세요"
           maxLength={500}
           required
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
-        <button>추가</button>
+        <button disabled={!title.trim()}>추가</button>
       </form>
       {error && <p role="alert">{error}</p>}
-      {loaded && todos.length === 0 && <p className="empty">위 입력창에 첫 할 일을 적어 보세요.</p>}
+      {loaded && todos.length === 0 && <p className="empty">아직 할 일이 없어요. 첫 할 일을 적어 보세요.</p>}
       {todos.length > 0 && (
         <>
           <input
@@ -147,10 +156,18 @@ export default function App() {
       )}
       <ul>
         {visible.map((todo) => (
-          <li key={todo.id}>
+          <li key={todo.id} className={leaving.includes(todo.id) ? 'leaving' : undefined}>
             <label>
-              <input type="checkbox" checked={todo.completed} onChange={(e) => toggle(todo.id, e.target.checked)} />
-              <span>{todo.title}</span>
+              <input
+                type="checkbox"
+                aria-label={`${todo.title} 완료 표시`}
+                checked={todo.completed}
+                onChange={(e) => toggle(todo.id, e.target.checked)}
+              />
+              <svg className="tick" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 12.5 4 4 8-9" pathLength="1" />
+              </svg>
+              <span title={todo.title}>{todo.title}</span>
             </label>
             <button aria-label={`${todo.title} 삭제`} onClick={() => remove(todo.id)}>
               삭제
