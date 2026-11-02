@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { demoRequest } from './demo.js';
 
-async function request(path = '', method = 'GET', body) {
+const DEMO = import.meta.env.VITE_DEMO === 'true';
+
+async function apiRequest(path = '', method = 'GET', body) {
   const res = await fetch(`/api/todos${path}`, {
     method,
     headers: body && { 'Content-Type': 'application/json' },
@@ -11,6 +14,8 @@ async function request(path = '', method = 'GET', body) {
   if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? '요청에 실패했습니다');
   return res.status === 204 ? null : res.json();
 }
+
+const request = DEMO ? demoRequest : apiRequest;
 
 const TABS = [
   ['all', '전체'],
@@ -200,6 +205,7 @@ export default function App() {
 
   return (
     <main>
+      {DEMO && <p className="demo-notice">데모 버전이에요. 할 일은 이 브라우저에만 저장돼요.</p>}
       <p className="brand">Todo</p>
       <h1>{heading}</h1>
       {live.length > 0 && (
