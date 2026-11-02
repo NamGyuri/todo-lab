@@ -1,0 +1,12 @@
+# DB_USER and DB_NAME must match .env: db-secret also carries them, but only
+# DB_PASSWORD is read from the Secret.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-config
+  namespace: todo-3tier
+data:
+  DB_HOST: db
+  DB_PORT: "5432"
+  DB_NAME: todo
+  DB_USER: todo
