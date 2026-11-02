@@ -29,6 +29,7 @@
         --check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 12.5 4 4 8-9'/%3E%3C/svg%3E");
         --magnifier: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23696e77' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E");
         --trash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5'/%3E%3C/svg%3E");
+        --pencil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 20h4L19 9l-4-4L4 16v4ZM13 7l4 4'/%3E%3C/svg%3E");
       }
       * { box-sizing: border-box; }
       body {
@@ -43,7 +44,7 @@
       main {
         max-width: 688px;
         margin: 0 auto;
-        padding: 0 24px 64px;
+        padding: 0 24px 96px; /* keeps the last row clear of the undo toast */
       }
 
       .brand {
@@ -240,7 +241,7 @@
       }
       @keyframes row-out {
         from { max-height: 120px; }
-        to { max-height: 0; min-height: 0; margin-bottom: -8px; opacity: 0; transform: translateX(32px); }
+        to { max-height: 0; min-height: 0; margin-bottom: -8px; opacity: 0; transform: translateX(16px); } /* no wider than the phone gutter, or the page scrolls sideways */
       }
 
       /* The whole label is the checkbox's hit area, which keeps it above 44x44px. */
@@ -255,7 +256,7 @@
         padding: 12px 0 12px 16px;
         cursor: pointer;
       }
-      li input {
+      li label input {
         flex: none;
         appearance: none;
         width: 22px;
@@ -268,8 +269,8 @@
         transition: background-color 0.15s var(--ease), border-color 0.15s var(--ease), transform 0.15s var(--ease);
       }
       li label:hover input { border-color: var(--text); }
-      li input:active { transform: scale(0.88); }
-      li input:checked,
+      li label input:active { transform: scale(0.88); }
+      li label input:checked,
       li label:hover input:checked { border-color: var(--accent); background-color: var(--accent); }
       .tick {
         position: absolute;
@@ -305,8 +306,76 @@
       }
       li label:has(:checked) span { background-size: 100% 1.5px; color: var(--text-done); }
 
+      li:has(.edit):hover { background: var(--card); box-shadow: var(--shadow-card); }
+      .edit {
+        flex: 1;
+        min-width: 0;
+        padding: 6px 0 6px 8px;
+      }
+      /* DESIGN-mobbin: field-tint input with an ink focus ring, ink primary pill, outline twin. */
+      .edit-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .edit input {
+        flex: 1;
+        min-width: 0;
+        height: 44px;
+        padding: 8px 16px;
+        border: 0;
+        border-radius: 16px;
+        background: #f0f0f0;
+        color: inherit;
+        font: inherit;
+      }
+      .edit input:focus { outline: 2px solid var(--text); outline-offset: 0; }
+      li .edit button { min-height: 36px; font-size: 14px; font-weight: 600; }
+      li .edit .edit-save { border-color: var(--text); background: var(--text); color: #fff; }
+      li .edit .edit-save:hover { color: #fff; opacity: 0.85; }
+      li .edit .edit-cancel { color: var(--text); }
+      li .edit .edit-cancel:hover { border-color: var(--text); color: var(--text); }
+      .edit-button:disabled { opacity: 0.45; cursor: default; }
+      li .edit-button:disabled:hover { color: var(--text-sub); }
+
+      .toast-region {
+        position: fixed;
+        right: 16px;
+        bottom: calc(16px + env(safe-area-inset-bottom));
+        left: 16px;
+        z-index: 2;
+        display: flex;
+        justify-content: center;
+        pointer-events: none;
+      }
+      .toast {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 8px 4px 16px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--card);
+        box-shadow: var(--shadow-float);
+        font-size: 14px;
+        pointer-events: auto;
+        animation: row-in 0.2s var(--ease);
+      }
+      .toast button {
+        min-height: 36px;
+        padding: 0 8px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: var(--accent);
+        font-weight: 600;
+        transition: background-color 0.15s var(--ease);
+      }
+      .toast button:hover { background: var(--accent-soft); }
+
       @media (max-width: 640px) {
-        main { padding: 0 16px 48px; }
+        main { padding: 0 16px 96px; }
+        .toast button { min-height: 44px; }
         .brand { margin-bottom: 32px; }
         h1 { font-size: 32px; }
         .tabs, .clear { width: 100%; }
@@ -338,9 +407,15 @@
           background: currentColor;
           mask: var(--trash) center / contain no-repeat;
         }
+        li button.edit-button::before { mask-image: var(--pencil); }
+        .edit-row { flex-wrap: wrap; }
+        .edit input { flex-basis: 100%; }
+        li .edit button { flex: 1; display: block; width: auto; min-height: 44px; padding: 0 16px; }
+        li .edit button::before { content: none; }
       }
       @media (prefers-reduced-motion: reduce) {
         *, *::before { transition: none !important; animation: none !important; }
+        li.leaving { display: none; } /* row-out is what hides it otherwise */
       }
     </style>
   </head>

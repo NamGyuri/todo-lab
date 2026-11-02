@@ -55,6 +55,73 @@ test('rejects bad input', async () => {
   assert.equal(malformed.status, 400);
 });
 
+test('edit title', async () => {
+  const todo = await (await send('POST', '', { title: '원래 제목' })).json();
+  try {
+    await send('PATCH', `/${todo.id}`, { completed: true });
+
+    const edited = await send('PATCH', `/${todo.id}`, { title: '  새 제목  ' });
+    assert.equal(edited.status, 200);
+    const body = await edited.json();
+    assert.equal(body.title, '새 제목');
+    assert.equal(body.completed, true);
+
+    const max = await send('PATCH', `/${todo.id}`, { title: 'x'.repeat(500) });
+    assert.equal(max.status, 200);
+
+    for (const title of ['', '   ', 'x'.repeat(501), 1, null]) {
+      assert.equal((await send('PATCH', `/${todo.id}`, { title })).status, 400);
+    }
+    const unchanged = (await (await send('GET', '')).json()).find((t) => t.id === todo.id);
+    assert.equal(unchanged.title, 'x'.repeat(500));
+
+    const toggled = await (await send('PATCH', `/${todo.id}`, { completed: false })).json();
+    assert.equal(toggled.completed, false);
+    assert.equal(toggled.title, 'x'.repeat(500));
+    assert.equal((await send('PATCH', `/${todo.id}`, {})).status, 400);
+  } finally {
+    await send('DELETE', `/${todo.id}`);
+  }
+  assert.equal((await send('PATCH', `/${todo.id}`, { title: '없는 할 일' })).status, 404);
+});
+
+test('patch changes only the fields it was sent', async () => {
+  const todo = await (await send('POST', '', { title: '처음' })).json();
+  const patch = async (body) => {
+    const res = await send('PATCH', `/${todo.id}`, body);
+    return [res.status, await res.json()];
+  };
+  const current = async () => (await (await send('GET', '')).json()).find((t) => t.id === todo.id);
+  try {
+    let [status, row] = await patch({ completed: true });
+    assert.equal(status, 200);
+    assert.deepEqual([row.title, row.completed], ['처음', true]);
+
+    // A finished todo can still be renamed, and stays finished.
+    [status, row] = await patch({ title: '  완료 후 수정  ' });
+    assert.equal(status, 200);
+    assert.deepEqual([row.title, row.completed], ['완료 후 수정', true]);
+
+    [status, row] = await patch({ title: '  둘 다  ', completed: false });
+    assert.equal(status, 200);
+    assert.deepEqual([row.title, row.completed], ['둘 다', false]);
+
+    // One bad field rejects the whole request: the good one must not be applied.
+    for (const body of [
+      { title: '   ', completed: true },
+      { title: 'x'.repeat(501), completed: true },
+      { title: '바뀌면 안 됨', completed: 'yes' },
+      { title: '바뀌면 안 됨', completed: null },
+    ]) {
+      assert.equal((await patch(body))[0], 400);
+    }
+    row = await current();
+    assert.deepEqual([row.title, row.completed], ['둘 다', false]);
+  } finally {
+    await send('DELETE', `/${todo.id}`);
+  }
+});
+
 test('stores SQL metacharacters literally', async () => {
   const title = "'); DROP TABLE todos; --";
   const todo = await (await send('POST', '', { title })).json();

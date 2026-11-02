@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 async function request(path = '', method = 'GET', body) {
   const res = await fetch(`/api/todos${path}`, {
     method,
     headers: body && { 'Content-Type': 'application/json' },
     body: body && JSON.stringify(body),
+    // A delete sent while the tab is closing must outlive the page.
+    keepalive: method === 'DELETE',
   });
   if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? '요청에 실패했습니다');
   return res.status === 204 ? null : res.json();
@@ -15,6 +17,8 @@ const TABS = [
   ['active', '진행 중'],
   ['done', '완료'],
 ];
+const UNDO_MS = 5000;
+const DOUBLE_CLICK_MS = 250;
 
 export default function App() {
   const [todos, setTodos] = useState([]);
@@ -25,6 +29,11 @@ export default function App() {
   const [query, setQuery] = useState('');
   const [clearing, setClearing] = useState(false);
   const [leaving, setLeaving] = useState([]);
+  const [pending, setPending] = useState([]);
+  const [editing, setEditing] = useState(null);
+  const undoTimers = useRef(new Map());
+  const titleClick = useRef();
+  const editSaving = useRef(false);
 
   const run = async (action) => {
     setError('');
@@ -42,6 +51,26 @@ export default function App() {
     });
   }, []);
 
+  useEffect(() => {
+    const flushDeletes = () => {
+      for (const [id, timer] of undoTimers.current) {
+        clearTimeout(timer);
+        request(`/${id}`, 'DELETE').catch(() => {});
+      }
+      undoTimers.current.clear();
+    };
+    // Back from bfcache, the page would still offer undo for rows already deleted.
+    const reloadIfRestored = (e) => {
+      if (e.persisted) window.location.reload();
+    };
+    window.addEventListener('pagehide', flushDeletes);
+    window.addEventListener('pageshow', reloadIfRestored);
+    return () => {
+      window.removeEventListener('pagehide', flushDeletes);
+      window.removeEventListener('pageshow', reloadIfRestored);
+    };
+  }, []);
+
   const add = (e) => {
     e.preventDefault();
     run(async () => {
@@ -57,6 +86,49 @@ export default function App() {
       setTodos((prev) => prev.map((t) => (t.id === id ? updated : t)));
     });
 
+  // One edit at a time: nothing saves by itself now, so switching rows would lose the draft.
+  const startEdit = (todo) => {
+    if (!editing) setEditing({ id: todo.id, draft: todo.title, message: '' });
+  };
+
+  const saveEdit = async () => {
+    if (editSaving.current) return;
+    const next = editing.draft.trim();
+    if (!next) return setEditing({ ...editing, message: '제목을 입력해 주세요.' });
+    if (next.length > 500) return setEditing({ ...editing, message: '제목은 500자까지 쓸 수 있어요.' });
+    if (next === todos.find((t) => t.id === editing.id)?.title) return setEditing(null);
+    editSaving.current = true;
+    try {
+      const updated = await request(`/${editing.id}`, 'PATCH', { title: next });
+      setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      setEditing(null);
+    } catch (err) {
+      setEditing((prev) => prev && { ...prev, message: err.message });
+    } finally {
+      editSaving.current = false;
+    }
+  };
+
+  const editKey = (e) => {
+    // Enter that confirms Korean composition is not a save; Safari reports it only through keyCode.
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+    // Enter on the 취소 button must stay a click on that button.
+    if (e.key === 'Enter' && e.target.tagName === 'INPUT') saveEdit();
+    if (e.key === 'Escape') setEditing(null);
+  };
+
+  // The title sits in the checkbox's label, so each click of a double click would toggle it.
+  const clickTitle = (e, todo) => {
+    e.preventDefault();
+    clearTimeout(titleClick.current);
+    if (e.detail === 1) titleClick.current = setTimeout(() => toggle(todo.id, !todo.completed), DOUBLE_CLICK_MS);
+  };
+
+  const doubleClickTitle = (todo) => {
+    clearTimeout(titleClick.current);
+    startEdit(todo);
+  };
+
   // Plays the row-out animation (0.2s in index.html) before the rows leave the list.
   const dropRows = async (ids) => {
     setLeaving((prev) => [...prev, ...ids]);
@@ -65,14 +137,38 @@ export default function App() {
     setLeaving((prev) => prev.filter((id) => !ids.includes(id)));
   };
 
-  const remove = (id) =>
+  const commitDelete = (id) => {
+    undoTimers.current.delete(id);
+    setPending((prev) => prev.filter((p) => p !== id));
+    setLeaving((prev) => [...prev, id]);
     run(async () => {
-      await request(`/${id}`, 'DELETE');
-      await dropRows([id]);
+      try {
+        await request(`/${id}`, 'DELETE');
+        setTodos((prev) => prev.filter((t) => t.id !== id));
+      } catch {
+        throw new Error('삭제하지 못해 되살렸어요.');
+      } finally {
+        setLeaving((prev) => prev.filter((l) => l !== id));
+      }
     });
+  };
+
+  const remove = (id) => {
+    setPending((prev) => [...prev, id]);
+    undoTimers.current.set(id, setTimeout(() => commitDelete(id), UNDO_MS));
+  };
+
+  const undo = (id) => {
+    clearTimeout(undoTimers.current.get(id));
+    undoTimers.current.delete(id);
+    setPending((prev) => prev.filter((p) => p !== id));
+  };
+
+  const isGone = (id) => pending.includes(id) || leaving.includes(id);
+  const live = todos.filter((t) => !isGone(t.id));
 
   const clearDone = async () => {
-    const ids = todos.filter((t) => t.completed).map((t) => t.id);
+    const ids = live.filter((t) => t.completed).map((t) => t.id);
     if (!window.confirm(`완료한 ${ids.length}개를 삭제할까요?`)) return;
     setClearing(true);
     await run(async () => {
@@ -85,18 +181,18 @@ export default function App() {
     setClearing(false);
   };
 
-  const done = todos.filter((t) => t.completed).length;
-  const left = todos.length - done;
-  const counts = { all: todos.length, active: left, done };
+  const done = live.filter((t) => t.completed).length;
+  const left = live.length - done;
+  const counts = { all: live.length, active: left, done };
   const keyword = query.trim().toLowerCase();
-  const visible = todos.filter(
-    (t) => (filter === 'all' || t.completed === (filter === 'done')) && t.title.toLowerCase().includes(keyword),
-  );
-  const heading = !loaded && todos.length === 0
+  const matches = (t) =>
+    (filter === 'all' || t.completed === (filter === 'done')) && t.title.toLowerCase().includes(keyword);
+  const latestPending = pending.at(-1);
+  const heading = !loaded && live.length === 0
     ? error
       ? '목록을 불러오지 못했어요.'
       : '불러오는 중.'
-    : todos.length === 0
+    : live.length === 0
       ? '할 일이 없어요.'
       : left === 0
         ? '모두 끝냈어요.'
@@ -106,12 +202,12 @@ export default function App() {
     <main>
       <p className="brand">Todo</p>
       <h1>{heading}</h1>
-      {todos.length > 0 && (
+      {live.length > 0 && (
         <>
           <p className="summary">
-            전체 {todos.length}개 중 {done}개 완료
+            전체 {live.length}개 중 {done}개 완료
           </p>
-          <progress aria-label="완료한 할 일" value={done} max={todos.length} />
+          <progress aria-label="완료한 할 일" value={done} max={live.length} />
         </>
       )}
       <form onSubmit={add}>
@@ -126,8 +222,8 @@ export default function App() {
         <button disabled={!title.trim()}>추가</button>
       </form>
       {error && <p role="alert">{error}</p>}
-      {loaded && todos.length === 0 && <p className="empty">아직 할 일이 없어요. 첫 할 일을 적어 보세요.</p>}
-      {todos.length > 0 && (
+      {loaded && live.length === 0 && <p className="empty">아직 할 일이 없어요. 첫 할 일을 적어 보세요.</p>}
+      {live.length > 0 && (
         <>
           <input
             className="search"
@@ -151,30 +247,77 @@ export default function App() {
               </button>
             )}
           </div>
-          {visible.length === 0 && <p className="empty">찾는 할 일이 없어요</p>}
+          {!live.some(matches) && <p className="empty">찾는 할 일이 없어요</p>}
         </>
       )}
       <ul>
-        {visible.map((todo) => (
-          <li key={todo.id} className={leaving.includes(todo.id) ? 'leaving' : undefined}>
-            <label>
-              <input
-                type="checkbox"
-                aria-label={`${todo.title} 완료 표시`}
-                checked={todo.completed}
-                onChange={(e) => toggle(todo.id, e.target.checked)}
-              />
-              <svg className="tick" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m6 12.5 4 4 8-9" pathLength="1" />
-              </svg>
-              <span title={todo.title}>{todo.title}</span>
-            </label>
-            <button aria-label={`${todo.title} 삭제`} onClick={() => remove(todo.id)}>
-              삭제
-            </button>
+        {todos.filter(matches).map((todo) => (
+          <li key={todo.id} className={isGone(todo.id) ? 'leaving' : undefined} inert={isGone(todo.id)}>
+            {editing?.id === todo.id ? (
+              <div className="edit" onKeyDown={editKey}>
+                <div className="edit-row">
+                  <input
+                    autoFocus
+                    aria-label={`${todo.title} 제목 수정`}
+                    aria-invalid={Boolean(editing.message)}
+                    value={editing.draft}
+                    onChange={(e) => setEditing({ ...editing, draft: e.target.value, message: '' })}
+                  />
+                  <button className="edit-save" onClick={saveEdit}>
+                    저장
+                  </button>
+                  <button className="edit-cancel" onClick={() => setEditing(null)}>
+                    취소
+                  </button>
+                </div>
+                {editing.message && <p role="alert">{editing.message}</p>}
+              </div>
+            ) : (
+              <>
+                <label>
+                  <input
+                    type="checkbox"
+                    aria-label={`${todo.title} 완료 표시`}
+                    checked={todo.completed}
+                    onChange={(e) => toggle(todo.id, e.target.checked)}
+                  />
+                  <svg className="tick" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m6 12.5 4 4 8-9" pathLength="1" />
+                  </svg>
+                  <span
+                    title={todo.title}
+                    onClick={(e) => clickTitle(e, todo)}
+                    onDoubleClick={() => doubleClickTitle(todo)}
+                  >
+                    {todo.title}
+                  </span>
+                </label>
+                <button
+                  className="edit-button"
+                  aria-label={`${todo.title} 제목 수정`}
+                  disabled={Boolean(editing)}
+                  onClick={() => startEdit(todo)}
+                >
+                  수정
+                </button>
+                <button aria-label={`${todo.title} 삭제`} onClick={() => remove(todo.id)}>
+                  삭제
+                </button>
+              </>
+            )}
           </li>
         ))}
       </ul>
+      <div className="toast-region" role="status">
+        {latestPending !== undefined && (
+          <div className="toast">
+            삭제했어요 ·
+            <button key={latestPending} autoFocus onClick={() => undo(latestPending)}>
+              실행 취소
+            </button>
+          </div>
+        )}
+      </div>
     </main>
   );
 }
