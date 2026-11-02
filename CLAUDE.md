@@ -7,10 +7,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 `api/` and `web/` are separate npm packages with no root package; run commands inside each one.
 
 ```powershell
-# api/ (needs DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME set, including for tests)
-npm start                                    # port 3000, or PORT
-npm test                                     # node:test against a real PostgreSQL
-node --test --test-name-pattern="<name>"     # single test
+# api/ (DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME come from api/.env, which is git-ignored)
+node --env-file=.env server.js                              # port 3000, or PORT
+node --env-file=.env --test                                 # node:test against a real PostgreSQL
+node --env-file=.env --test --test-name-pattern="<name>"    # single test
 
 # web/
 npm run dev                                  # http://localhost:5173
