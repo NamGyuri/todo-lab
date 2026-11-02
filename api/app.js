@@ -45,15 +45,18 @@ app.post('/api/todos', async (req, res) => {
 const validId = (id) => /^\d+$/.test(id) && Number(id) <= 2147483647;
 
 app.patch('/api/todos/:id', async (req, res) => {
-  const completed = req.body?.completed;
-  if (typeof completed !== 'boolean') {
+  const { title, completed } = req.body ?? {};
+  if (title !== undefined && (typeof title !== 'string' || !title.trim() || title.trim().length > 500)) {
+    return res.status(400).json({ error: 'title은 1~500자 문자열이어야 합니다' });
+  }
+  if (completed === undefined ? title === undefined : typeof completed !== 'boolean') {
     return res.status(400).json({ error: 'completed는 true 또는 false여야 합니다' });
   }
   if (!validId(req.params.id)) return res.status(404).json({ error: '할 일을 찾을 수 없습니다' });
-  const { rows } = await pool.query('UPDATE todos SET completed = $1 WHERE id = $2 RETURNING *', [
-    completed,
-    req.params.id,
-  ]);
+  const { rows } = await pool.query(
+    'UPDATE todos SET title = COALESCE($1::text, title), completed = COALESCE($2::boolean, completed) WHERE id = $3 RETURNING *',
+    [title?.trim() ?? null, completed ?? null, req.params.id],
+  );
   if (!rows.length) return res.status(404).json({ error: '할 일을 찾을 수 없습니다' });
   res.json(rows[0]);
 });

@@ -5,15 +5,429 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Todo</title>
     <style>
-      body { max-width: 32rem; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; }
-      form, li { display: flex; gap: 0.5rem; align-items: center; }
-      form input { flex: 1; padding: 0.5rem; }
-      ul { list-style: none; padding: 0; }
-      li { padding: 0.5rem 0; border-bottom: 1px solid #ddd; }
-      li label { flex: 1; display: flex; gap: 0.5rem; overflow-wrap: anywhere; }
-      li label:has(:checked) span { text-decoration: line-through; color: #666; }
-      button { padding: 0.5rem 0.75rem; }
-      [role='alert'] { color: #b00020; }
+      :root {
+        color-scheme: light;
+        --bg: #ffffff;
+        --bg-glow: #e8f1fd;
+        --surface: #f4f6f9;
+        --card: #ffffff;
+        --text: #111318;
+        /* DESIGN.md's greys, blue and red miss 4.5:1, so these are its values darkened just enough. */
+        --text-sub: #696e77;
+        --text-hint: #696e77;
+        --text-done: #696e77;
+        --line: #e9ecf1;
+        --line-strong: #8e939c; /* unchecked checkbox edge: 3:1 on white */
+        --accent: #0a68d4;
+        --accent-hover: #0a5cbc;
+        --accent-soft: #e6f2ff;
+        --danger: #d1343a;
+        --shadow-card: 0 1px 2px rgba(17, 19, 24, 0.04), 0 4px 16px rgba(17, 19, 24, 0.04);
+        --shadow-float: 0 8px 30px rgba(17, 19, 24, 0.08);
+        --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+        --font: Pretendard, Inter, 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+        --check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 12.5 4 4 8-9'/%3E%3C/svg%3E");
+        --magnifier: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23696e77' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E");
+        --trash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5'/%3E%3C/svg%3E");
+        --pencil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 20h4L19 9l-4-4L4 16v4ZM13 7l4 4'/%3E%3C/svg%3E");
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: radial-gradient(ellipse 640px 200px at 50% 0, var(--bg-glow), transparent) no-repeat var(--bg);
+        color: var(--text);
+        font: 400 16px/1.5 var(--font);
+      }
+      button { font: inherit; color: inherit; cursor: pointer; }
+      :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+      main {
+        max-width: 688px;
+        margin: 0 auto;
+        padding: 0 24px 96px; /* keeps the last row clear of the undo toast */
+      }
+
+      .demo-notice {
+        margin: 16px 0 0;
+        padding: 8px 16px;
+        border-radius: 14px;
+        background: var(--surface);
+        color: var(--text-sub);
+        font-size: 13px;
+        text-align: center;
+        word-break: keep-all;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 64px;
+        margin: 0 0 48px;
+        font-weight: 700;
+      }
+      .brand::before {
+        content: '';
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        background: var(--text) var(--check) center / 20px no-repeat;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 48px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1.1;
+        word-break: keep-all;
+      }
+      .summary {
+        margin: 12px 0 0;
+        color: var(--text-sub);
+        font-size: 13px;
+      }
+      progress {
+        display: block;
+        width: 100%;
+        height: 6px;
+        margin-top: 16px;
+        border: 0;
+        border-radius: 999px;
+        overflow: hidden;
+        appearance: none;
+        background: var(--line);
+      }
+      progress::-webkit-progress-bar { background: var(--line); }
+      progress::-webkit-progress-value { background: var(--accent); transition: inline-size 0.3s var(--ease); }
+      progress::-moz-progress-bar { background: var(--accent); }
+
+      /* Stays in reach while a long list scrolls; the white ground hides rows passing behind it. */
+      form {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        display: flex;
+        gap: 8px;
+        margin-top: 32px;
+        padding: 8px 0;
+        background: var(--bg);
+      }
+      form input, .search {
+        flex: 1;
+        min-width: 0;
+        height: 52px;
+        padding: 12px 16px;
+        border: 0;
+        border-radius: 14px;
+        background-color: var(--surface);
+        color: inherit;
+        font: inherit;
+        transition: box-shadow 0.15s var(--ease);
+      }
+      form input::placeholder, .search::placeholder { color: var(--text-hint); opacity: 1; }
+      form input:focus, .search:focus {
+        outline: 0;
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent), var(--shadow-float);
+      }
+      .search {
+        display: block;
+        width: 100%;
+        margin-top: 8px;
+        padding-left: 44px;
+        background: var(--surface) var(--magnifier) 16px center / 20px no-repeat;
+        appearance: none;
+      }
+
+      form button {
+        flex: none;
+        min-width: 72px;
+        height: 52px;
+        padding: 0 24px;
+        border: 0;
+        border-radius: 999px;
+        background: var(--accent);
+        color: #fff;
+        font-weight: 600;
+        transition: background-color 0.15s var(--ease), transform 0.15s var(--ease), opacity 0.15s var(--ease);
+      }
+      form button:hover:not(:disabled) { background: var(--accent-hover); }
+      form button:active:not(:disabled) { transform: scale(0.97); }
+      form button:disabled { opacity: 0.45; cursor: default; }
+
+      .tools {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-top: 16px;
+      }
+      .tabs { display: flex; gap: 4px; }
+      .tabs button {
+        min-height: 36px;
+        padding: 0 12px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: var(--text-sub);
+        font-size: 14px;
+        font-weight: 500;
+        white-space: nowrap;
+        transition: background-color 0.15s var(--ease), color 0.15s var(--ease);
+      }
+      .tabs button:hover { background: var(--surface); color: var(--text); }
+      .tabs button[aria-pressed='true'] {
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .tabs small {
+        color: var(--text-sub);
+        font-size: 12px;
+        font-weight: 400;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .clear, li button {
+        flex: none;
+        min-height: 36px;
+        padding: 0 16px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--card);
+        color: var(--text-sub);
+        font-size: 13px;
+        font-weight: 500;
+        transition: color 0.15s var(--ease);
+      }
+      .clear:hover:not(:disabled), li button:hover { color: var(--danger); }
+      .clear:disabled { cursor: default; }
+
+      [role='alert'] {
+        margin: 8px 0 0;
+        color: var(--danger);
+        font-size: 13px;
+      }
+
+      .empty {
+        margin: 16px 0 0;
+        padding: 48px 24px;
+        border: 1px dashed var(--line-strong);
+        border-radius: 14px;
+        color: var(--text-sub);
+        text-align: center;
+      }
+
+      ul {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin: 16px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+      li {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 56px;
+        padding-right: 8px;
+        border-radius: 14px;
+        background: var(--card);
+        box-shadow: var(--shadow-card);
+        transition: background-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+        animation: row-in 0.2s var(--ease);
+      }
+      li:hover { background: var(--surface); box-shadow: var(--shadow-float); }
+      /* DESIGN.md dims finished rows to 0.7; fading the text would break 4.5:1, so only the lift goes. */
+      li:has(:checked), li:has(:checked):hover { box-shadow: none; outline: 1px solid var(--line); outline-offset: -1px; }
+      li.leaving {
+        overflow: hidden;
+        pointer-events: none;
+        animation: row-out 0.2s var(--ease) forwards;
+      }
+      @keyframes row-in {
+        from { opacity: 0; transform: translateY(-8px); }
+      }
+      @keyframes row-out {
+        from { max-height: 120px; }
+        to { max-height: 0; min-height: 0; margin-bottom: -8px; opacity: 0; transform: translateX(16px); } /* no wider than the phone gutter, or the page scrolls sideways */
+      }
+
+      /* The whole label is the checkbox's hit area, which keeps it above 44x44px. */
+      li label {
+        position: relative;
+        flex: 1;
+        align-self: stretch;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 0 12px 16px;
+        cursor: pointer;
+      }
+      li label input {
+        flex: none;
+        appearance: none;
+        width: 22px;
+        height: 22px;
+        margin: 0;
+        border: 2px solid var(--line-strong);
+        border-radius: 999px;
+        background: var(--card);
+        cursor: pointer;
+        transition: background-color 0.15s var(--ease), border-color 0.15s var(--ease), transform 0.15s var(--ease);
+      }
+      li label:hover input { border-color: var(--text); }
+      li label input:active { transform: scale(0.88); }
+      li label input:checked,
+      li label:hover input:checked { border-color: var(--accent); background-color: var(--accent); }
+      .tick {
+        position: absolute;
+        top: 50%;
+        left: 16px;
+        width: 22px;
+        height: 22px;
+        margin-top: -11px;
+        fill: none;
+        stroke: #fff;
+        stroke-width: 3;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-dasharray: 1;
+        stroke-dashoffset: 1;
+        opacity: 0;
+        pointer-events: none;
+      }
+      input:checked + .tick {
+        stroke-dashoffset: 0;
+        opacity: 1;
+        transition: stroke-dashoffset 0.2s var(--ease);
+      }
+      li label span {
+        min-width: 0;
+        overflow: hidden;
+        font-weight: 500;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        /* Drawn as a background so the strike can sweep left to right. */
+        background: linear-gradient(currentColor, currentColor) left center / 0 1.5px no-repeat;
+        transition: background-size 0.25s var(--ease), color 0.25s var(--ease);
+      }
+      li label:has(:checked) span { background-size: 100% 1.5px; color: var(--text-done); }
+
+      li:has(.edit):hover { background: var(--card); box-shadow: var(--shadow-card); }
+      .edit {
+        flex: 1;
+        min-width: 0;
+        padding: 6px 0 6px 8px;
+      }
+      /* DESIGN-mobbin: field-tint input with an ink focus ring, ink primary pill, outline twin. */
+      .edit-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .edit input {
+        flex: 1;
+        min-width: 0;
+        height: 44px;
+        padding: 8px 16px;
+        border: 0;
+        border-radius: 16px;
+        background: #f0f0f0;
+        color: inherit;
+        font: inherit;
+      }
+      .edit input:focus { outline: 2px solid var(--text); outline-offset: 0; }
+      li .edit button { min-height: 36px; font-size: 14px; font-weight: 600; }
+      li .edit .edit-save { border-color: var(--text); background: var(--text); color: #fff; }
+      li .edit .edit-save:hover { color: #fff; opacity: 0.85; }
+      li .edit .edit-cancel { color: var(--text); }
+      li .edit .edit-cancel:hover { border-color: var(--text); color: var(--text); }
+      .edit-button:disabled { opacity: 0.45; cursor: default; }
+      li .edit-button:disabled:hover { color: var(--text-sub); }
+
+      .toast-region {
+        position: fixed;
+        right: 16px;
+        bottom: calc(16px + env(safe-area-inset-bottom));
+        left: 16px;
+        z-index: 2;
+        display: flex;
+        justify-content: center;
+        pointer-events: none;
+      }
+      .toast {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 8px 4px 16px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--card);
+        box-shadow: var(--shadow-float);
+        font-size: 14px;
+        pointer-events: auto;
+        animation: row-in 0.2s var(--ease);
+      }
+      .toast button {
+        min-height: 36px;
+        padding: 0 8px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: var(--accent);
+        font-weight: 600;
+        transition: background-color 0.15s var(--ease);
+      }
+      .toast button:hover { background: var(--accent-soft); }
+
+      @media (max-width: 640px) {
+        main { padding: 0 16px 96px; }
+        .toast button { min-height: 44px; }
+        .brand { margin-bottom: 32px; }
+        h1 { font-size: 32px; }
+        .tabs, .clear { width: 100%; }
+        .tabs button { flex: 1; min-height: 44px; padding: 0 8px; }
+        .clear { min-height: 44px; }
+        /* Two lines here, where a single background line can't strike both. */
+        li label span {
+          display: -webkit-box;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 2;
+          white-space: normal;
+          overflow-wrap: anywhere;
+          background: none;
+        }
+        li label:has(:checked) span { text-decoration: line-through; }
+        li button {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 44px;
+          min-height: 44px;
+          padding: 0;
+          font-size: 0;
+        }
+        li button::before {
+          content: '';
+          width: 18px;
+          height: 18px;
+          background: currentColor;
+          mask: var(--trash) center / contain no-repeat;
+        }
+        li button.edit-button::before { mask-image: var(--pencil); }
+        .edit-row { flex-wrap: wrap; }
+        .edit input { flex-basis: 100%; }
+        li .edit button { flex: 1; display: block; width: auto; min-height: 44px; padding: 0 16px; }
+        li .edit button::before { content: none; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before { transition: none !important; animation: none !important; }
+        li.leaving { display: none; } /* row-out is what hides it otherwise */
+      }
     </style>
   </head>
   <body>

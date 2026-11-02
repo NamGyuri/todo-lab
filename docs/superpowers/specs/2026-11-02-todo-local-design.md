@@ -25,6 +25,7 @@
 | 조회 | `GET /api/todos` | 없음 |
 | 추가 | `POST /api/todos` | `{ "title": "..." }` (앞뒤 공백 제거 후 저장, 입력 기준 1~500자) |
 | 완료, 완료 취소 | `PATCH /api/todos/:id` | `{ "completed": true 또는 false }` |
+| 제목 수정 | `PATCH /api/todos/:id` | `{ "title": "..." }` (앞뒤 공백 제거 후 1~500자, 아니면 400) |
 | 삭제 | `DELETE /api/todos/:id` | 없음 |
 
 ### 설정과 저장소
@@ -38,7 +39,6 @@
 - 로그인과 사용자별 목록 (검토 후 제외: 과제의 최소 기능에 없고, `curl localhost/api/todos` 확인 절차와 맞지 않음)
 - 인터넷 공개와 Render, Railway, AWS 같은 외부 서비스
 - 2~4단계 배포 파일 (Dockerfile, `compose.yaml`, systemd 유닛, Nginx 설정, Kubernetes 매니페스트)
-- 할 일 제목 수정
 
 ## 현재 상태
 
