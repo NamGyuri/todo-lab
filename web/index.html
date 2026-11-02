@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Todo</title>
+    <style>
+      body { max-width: 32rem; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; }
+      form, li { display: flex; gap: 0.5rem; align-items: center; }
+      form input { flex: 1; padding: 0.5rem; }
+      ul { list-style: none; padding: 0; }
+      li { padding: 0.5rem 0; border-bottom: 1px solid #ddd; }
+      li label { flex: 1; display: flex; gap: 0.5rem; overflow-wrap: anywhere; }
+      li label:has(:checked) span { text-decoration: line-through; color: #666; }
+      button { padding: 0.5rem 0.75rem; }
+      [role='alert'] { color: #b00020; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
