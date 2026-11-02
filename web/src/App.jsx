@@ -10,10 +10,20 @@ async function request(path = '', method = 'GET', body) {
   return res.status === 204 ? null : res.json();
 }
 
+const TABS = [
+  ['all', '전체'],
+  ['active', '진행 중'],
+  ['done', '완료'],
+];
+
 export default function App() {
   const [todos, setTodos] = useState([]);
   const [title, setTitle] = useState('');
   const [error, setError] = useState('');
+  const [loaded, setLoaded] = useState(false);
+  const [filter, setFilter] = useState('all');
+  const [query, setQuery] = useState('');
+  const [clearing, setClearing] = useState(false);
 
   const run = async (action) => {
     setError('');
@@ -25,7 +35,10 @@ export default function App() {
   };
 
   useEffect(() => {
-    run(async () => setTodos(await request()));
+    run(async () => {
+      setTodos(await request());
+      setLoaded(true);
+    });
   }, []);
 
   const add = (e) => {
@@ -49,9 +62,49 @@ export default function App() {
       setTodos((prev) => prev.filter((t) => t.id !== id));
     });
 
+  const clearDone = async () => {
+    const ids = todos.filter((t) => t.completed).map((t) => t.id);
+    if (!window.confirm(`완료한 ${ids.length}개를 삭제할까요?`)) return;
+    setClearing(true);
+    await run(async () => {
+      // Some deletes can fail: keep those rows on screen and drop only the ones that went through.
+      const results = await Promise.allSettled(ids.map((id) => request(`/${id}`, 'DELETE')));
+      const deleted = ids.filter((_, i) => results[i].status === 'fulfilled');
+      setTodos((prev) => prev.filter((t) => !deleted.includes(t.id)));
+      if (deleted.length < ids.length) throw new Error(`${ids.length - deleted.length}개를 삭제하지 못했어요.`);
+    });
+    setClearing(false);
+  };
+
+  const done = todos.filter((t) => t.completed).length;
+  const left = todos.length - done;
+  const counts = { all: todos.length, active: left, done };
+  const keyword = query.trim().toLowerCase();
+  const visible = todos.filter(
+    (t) => (filter === 'all' || t.completed === (filter === 'done')) && t.title.toLowerCase().includes(keyword),
+  );
+  const heading = !loaded && todos.length === 0
+    ? error
+      ? '목록을 불러오지 못했어요.'
+      : '불러오는 중.'
+    : todos.length === 0
+      ? '할 일이 없어요.'
+      : left === 0
+        ? '모두 끝냈어요.'
+        : `남은 일 ${left}개.`;
+
   return (
     <main>
-      <h1>Todo</h1>
+      <p className="brand">Todo</p>
+      <h1>{heading}</h1>
+      {todos.length > 0 && (
+        <>
+          <p className="summary">
+            전체 {todos.length}개 중 {done}개 완료
+          </p>
+          <progress aria-label="완료한 할 일" value={done} max={todos.length} />
+        </>
+      )}
       <form onSubmit={add}>
         <input
           aria-label="새 할 일"
@@ -64,8 +117,36 @@ export default function App() {
         <button>추가</button>
       </form>
       {error && <p role="alert">{error}</p>}
+      {loaded && todos.length === 0 && <p className="empty">위 입력창에 첫 할 일을 적어 보세요.</p>}
+      {todos.length > 0 && (
+        <>
+          <input
+            className="search"
+            type="search"
+            aria-label="할 일 검색"
+            placeholder="할 일 검색"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <div className="tools">
+            <div className="tabs" role="group" aria-label="할 일 필터">
+              {TABS.map(([key, label]) => (
+                <button key={key} aria-pressed={filter === key} onClick={() => setFilter(key)}>
+                  {label} <small>{counts[key]}</small>
+                </button>
+              ))}
+            </div>
+            {done > 0 && (
+              <button className="clear" disabled={clearing} onClick={clearDone}>
+                완료한 일 모두 삭제
+              </button>
+            )}
+          </div>
+          {visible.length === 0 && <p className="empty">찾는 할 일이 없어요</p>}
+        </>
+      )}
       <ul>
-        {todos.map((todo) => (
+        {visible.map((todo) => (
           <li key={todo.id}>
             <label>
               <input type="checkbox" checked={todo.completed} onChange={(e) => toggle(todo.id, e.target.checked)} />

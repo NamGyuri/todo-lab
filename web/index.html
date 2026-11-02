@@ -5,15 +5,267 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Todo</title>
     <style>
-      body { max-width: 32rem; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; }
-      form, li { display: flex; gap: 0.5rem; align-items: center; }
-      form input { flex: 1; padding: 0.5rem; }
-      ul { list-style: none; padding: 0; }
-      li { padding: 0.5rem 0; border-bottom: 1px solid #ddd; }
-      li label { flex: 1; display: flex; gap: 0.5rem; overflow-wrap: anywhere; }
-      li label:has(:checked) span { text-decoration: line-through; color: #666; }
-      button { padding: 0.5rem 0.75rem; }
-      [role='alert'] { color: #b00020; }
+      :root {
+        color-scheme: light;
+        --ink: #141414;
+        --muted: #707070;
+        --placeholder: #666666; /* darker than the usual faint grey: stays 4.5:1 on the field tint */
+        --canvas: #ffffff;
+        --canvas-soft: #f3f3f3;
+        --field: #f0f0f0;
+        --hairline: #e0e0e0;
+        --accent: #0066ff;
+        --font: Inter, 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+        --check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 12.5 4 4 8-9'/%3E%3C/svg%3E");
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--canvas);
+        color: var(--ink);
+        font: 456 16px/1.38 var(--font);
+      }
+      button { font: inherit; color: inherit; cursor: pointer; }
+      :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+      main {
+        max-width: 688px;
+        margin: 0 auto;
+        padding: 32px 24px 80px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 80px;
+        font-weight: 600;
+      }
+      .brand::before {
+        content: '';
+        width: 32px;
+        height: 32px;
+        border-radius: 30%;
+        background: var(--accent) var(--check) center / 22px no-repeat;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 44px;
+        font-weight: 652;
+        line-height: 1.13;
+        word-break: keep-all;
+      }
+      .summary {
+        margin: 12px 0 0;
+        font-size: 20px;
+        font-weight: 300;
+        line-height: 1.38;
+      }
+      progress {
+        display: block;
+        width: 100%;
+        height: 8px;
+        margin-top: 24px;
+        border: 0;
+        border-radius: 9999px;
+        overflow: hidden;
+        appearance: none;
+        background: var(--canvas-soft);
+      }
+      progress::-webkit-progress-bar { background: var(--canvas-soft); }
+      progress::-webkit-progress-value { background: var(--accent); transition: inline-size 0.2s; }
+      progress::-moz-progress-bar { background: var(--accent); }
+
+      /* Stays in reach while a long list scrolls; the white ground hides rows passing behind it. */
+      form {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        display: flex;
+        gap: 8px;
+        margin-top: 32px;
+        padding: 8px 0;
+        background: var(--canvas);
+      }
+      form input, .search {
+        flex: 1;
+        min-width: 0;
+        height: 52px;
+        padding: 12px 16px;
+        border: 0;
+        border-radius: 16px;
+        background: var(--field);
+        color: inherit;
+        font: inherit;
+      }
+      form input::placeholder, .search::placeholder { color: var(--placeholder); opacity: 1; }
+      form input:focus, .search:focus { outline: 2px solid var(--ink); outline-offset: 0; }
+      .search {
+        display: block;
+        width: 100%;
+        margin-top: 8px;
+        appearance: none;
+      }
+
+      .tools {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-top: 16px;
+      }
+      .tabs {
+        display: flex;
+        gap: 4px;
+        padding: 4px;
+        border-radius: 9999px;
+        background: var(--canvas-soft);
+      }
+      .tabs button {
+        flex: 1;
+        min-height: 36px;
+        padding: 0 14px;
+        border: 0;
+        border-radius: 9999px;
+        background: transparent;
+        color: var(--placeholder);
+        font-size: 14px;
+        font-weight: 600;
+        white-space: nowrap;
+        transition: background-color 0.15s, color 0.15s;
+      }
+      .tabs button:hover { color: var(--ink); }
+      .tabs button[aria-pressed='true'] {
+        background: var(--canvas);
+        color: var(--ink);
+        box-shadow: 0 1px 2px rgb(20 20 20 / 0.12);
+      }
+      .tabs small {
+        color: var(--placeholder);
+        font-size: 12px;
+        font-weight: 456;
+        font-variant-numeric: tabular-nums;
+      }
+      .clear {
+        min-height: 36px;
+        padding: 0 16px;
+        border: 1px solid var(--hairline);
+        border-radius: 9999px;
+        background: var(--canvas);
+        font-size: 14px;
+        font-weight: 600;
+        transition: border-color 0.15s;
+      }
+      .clear:hover:not(:disabled) { border-color: var(--ink); }
+      .clear:disabled { color: var(--muted); cursor: default; }
+
+      form button {
+        flex: none;
+        min-width: 72px;
+        height: 52px;
+        padding: 0 16px;
+        border: 0;
+        border-radius: 9999px;
+        background: var(--ink);
+        color: var(--canvas);
+        font-weight: 600;
+        transition: transform 0.1s;
+      }
+      form button:active { transform: scale(0.97); }
+
+      /* No status hue in this palette, so errors take the inverse surface. */
+      [role='alert'] {
+        margin: 16px 0 0;
+        padding: 12px 16px;
+        border-radius: 16px;
+        background: var(--ink);
+        color: var(--canvas);
+      }
+
+      .empty {
+        margin: 16px 0 0;
+        padding: 48px;
+        border-radius: 24px;
+        background: var(--canvas-soft);
+      }
+
+      ul {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin: 16px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+      li {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px 6px 16px;
+        border: 1px solid transparent;
+        border-radius: 16px;
+        background: var(--canvas-soft);
+        transition: background-color 0.15s, border-color 0.15s;
+      }
+      li:hover { background: var(--field); }
+      /* A finished row steps down from the tint to a flat outline. */
+      li:has(:checked), li:has(:checked):hover { background: var(--canvas); border-color: var(--hairline); }
+      li label {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        gap: 12px;
+        padding: 8px 0;
+        word-break: keep-all;
+        overflow-wrap: anywhere;
+        cursor: pointer;
+      }
+      li input {
+        flex: none;
+        appearance: none;
+        width: 24px;
+        height: 24px;
+        margin: -1px 0 0;
+        border: 1.5px solid var(--muted);
+        border-radius: 9999px;
+        background: var(--canvas) center / 18px no-repeat;
+        cursor: pointer;
+        transition: background-color 0.15s, border-color 0.15s, transform 0.15s;
+      }
+      li label:hover input { border-color: var(--ink); }
+      li input:active { transform: scale(0.88); }
+      li input:checked,
+      li label:hover input:checked { border-color: var(--accent); background-color: var(--accent); background-image: var(--check); }
+      li label:has(:checked) span { color: var(--muted); text-decoration: line-through; }
+      li button {
+        flex: none;
+        min-height: 36px;
+        padding: 0 16px;
+        border: 1px solid var(--hairline);
+        border-radius: 9999px;
+        background: var(--canvas);
+        font-size: 14px;
+        font-weight: 600;
+        transition: border-color 0.15s;
+      }
+      li button:hover { border-color: var(--ink); }
+
+      @media (max-width: 640px) {
+        main { padding: 16px 16px 48px; }
+        .brand { margin-bottom: 48px; }
+        h1 { font-size: 32px; }
+        .empty { padding: 32px 24px; }
+        li { padding-right: 8px; }
+        li button { min-height: 44px; padding: 0 14px; }
+        .tabs, .clear { width: 100%; }
+        .tabs button { min-height: 44px; padding: 0 8px; }
+        .clear { min-height: 44px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * { transition: none !important; }
+      }
     </style>
   </head>
   <body>
