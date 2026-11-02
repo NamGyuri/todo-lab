@@ -2,7 +2,17 @@
 
 `web/`(React) → `api/`(Express) → PostgreSQL
 
-## 실행
+## Docker로 실행
+
+```bash
+cp .env.example .env   # DB_PASSWORD를 바꾸세요
+docker compose up -d --build
+curl localhost:8088/api/todos
+```
+
+웹은 http://localhost:8088 에서 열리고, nginx가 `/api`를 `api` 컨테이너로 전달합니다. 데이터는 `db-data` 볼륨에 저장되므로 `docker compose down`으로는 지워지지 않습니다. DB 비밀번호는 볼륨을 처음 만들 때 적용되므로, 나중에 `.env`만 바꾸면 접속이 실패합니다.
+
+## 로컬에서 실행
 
 PostgreSQL에 데이터베이스를 하나 만들어 두세요. `todos` 테이블은 API가 시작할 때 자동으로 만듭니다.
 
