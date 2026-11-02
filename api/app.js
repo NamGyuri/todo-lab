@@ -11,6 +11,7 @@ export const pool = new pg.Pool({
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
+  connectionTimeoutMillis: 5000,
 });
 // Without a listener, an idle connection dropping would crash the process.
 pool.on('error', (err) => console.error(err));
