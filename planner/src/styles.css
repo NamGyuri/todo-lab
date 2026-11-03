@@ -1,0 +1,1209 @@
+/* 색은 여기에서만 정의한다. 방향은 docs/todo-planning.md의 "9. 디자인 방향"을 따른다. */
+:root {
+  /* 글자가 없는 곳(진행률 바, 달력 점, 체크박스). 흰 글자의 바탕으로 쓰면 3.4:1이라 대비가 모자라다. */
+  --accent: #1a8cff;
+  /* 흰 글자가 올라가는 바탕(4.9:1). */
+  --accent-strong: #0a6fd8;
+  --accent-strong-hover: #085cb5;
+  --on-accent: #ffffff;
+  --text-title: #2a2d3a;
+  --text-body: #4c4c4c;
+  /* 대비 2.4:1이므로 완료 항목, 삭제 시점 같은 보조 글자에만 쓴다. */
+  --text-faint: #a8a8a8;
+  --bg: #ffffff;
+  --bg-soft: #f5f6f8;
+  --bg-hover: #eef0f2;
+  --line: #efefef;
+  --chip-bg: #e9eaec;
+  --progress-track: #dce9fb;
+  --chip-late-bg: #fdecec;
+  --chip-late-text: #b3261e;
+  --chip-today-bg: #e6f6ec;
+  --chip-today-text: #1b6e3c;
+  --star: #e5383b;
+  --focus: #1a8cff;
+  --today-ring: #c9cdd3;
+  --backdrop: rgb(42 45 58 / 40%);
+  --shadow-card: 0 1px 2px rgb(42 45 58 / 4%), 0 6px 20px rgb(42 45 58 / 6%);
+  --gutter: clamp(24px, 2.5vw, 32px);
+  /* 할 일 추가 카드와 수정 영역의 입력창, 선택, 버튼 */
+  --control-radius: 12px;
+  --control-height: 44px;
+  --radius-card: 18px;
+  --radius-full: 9999px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* 스크롤바 자리를 항상 비워 두어 보기를 바꿔도 화면이 밀리지 않는다. */
+html {
+  scrollbar-gutter: stable;
+}
+
+/* Chrome에서 scrollbar-width를 함께 쓰면 아래 규칙이 무시되어 화살표가 다시 나오므로 나눠 둔다. */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-button {
+  display: none;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: var(--radius-full);
+  background: var(--text-faint);
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--text-faint) transparent;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text-body);
+  font-family: 'Pretendard Variable', Pretendard, Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 450;
+  line-height: 1.4;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+h1,
+h2,
+h3,
+p,
+ul {
+  margin: 0;
+  padding: 0;
+}
+
+ul {
+  list-style: none;
+}
+
+.lucide {
+  stroke-width: 1.5;
+  flex: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Layout */
+.app {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr) 400px;
+  min-height: 100vh;
+}
+
+.sidebar {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.main {
+  grid-column: 2;
+  grid-row: 1;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 56px var(--gutter) 96px;
+}
+
+.panel {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.topbar {
+  display: none;
+}
+
+.brand {
+  color: var(--text-title);
+  font-size: 26px;
+  font-weight: 800;
+}
+
+/* Sidebar */
+.sidebar {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  padding: 32px 16px;
+  border-right: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 0 12px;
+  margin-bottom: 24px;
+}
+
+.sidebar-head .drawer-close {
+  display: none;
+}
+
+.nav-list {
+  display: grid;
+  gap: 4px;
+}
+
+.nav-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  font-weight: 500;
+  text-align: left;
+}
+
+.nav-count {
+  margin-left: auto;
+  font-size: 14px;
+}
+
+.nav-row:hover {
+  background: var(--bg-hover);
+}
+
+/* 사용자가 직접 정한 파란 글자(대비 3.1:1), 굵기로 보완한다. */
+.nav-row.active {
+  background: var(--bg-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.nav-row.active .lucide {
+  color: var(--accent);
+  stroke-width: 2;
+}
+
+/* Right panel */
+.panel {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 56px 28px 32px;
+  background: var(--bg-soft);
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.panel-head .icon-button {
+  display: none;
+}
+
+.calendar-title {
+  color: var(--text-title);
+  font-size: 24px;
+  font-weight: 700;
+}
+
+/* 양 끝 원이 패널 콘텐츠 끝에 붙도록 칸을 원 크기로 고정하고 7칸을 양 끝으로 벌린다. */
+.calendar,
+.calendar thead,
+.calendar tbody {
+  display: block;
+  width: 100%;
+}
+
+.calendar tr {
+  display: flex;
+  justify-content: space-between;
+}
+
+.calendar th,
+.calendar td {
+  display: block;
+  flex: none;
+  width: 32px;
+  padding: 0;
+  text-align: center;
+}
+
+.calendar th {
+  padding-bottom: 10px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.calendar td {
+  height: 52px;
+  padding-top: 4px;
+}
+
+.cal-day {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  font-size: 15px;
+}
+
+.cal-day:hover {
+  background: var(--bg-hover);
+}
+
+.cal-day.today {
+  box-shadow: inset 0 0 0 1px var(--today-ring);
+}
+
+.cal-day.selected:hover {
+  background: var(--accent-strong-hover);
+}
+
+.cal-day.selected {
+  background: var(--accent-strong);
+  box-shadow: none;
+  color: var(--on-accent);
+  font-weight: 700;
+}
+
+.cal-dot {
+  display: block;
+  width: 4px;
+  height: 4px;
+  margin: 2px auto 0;
+  border-radius: var(--radius-full);
+}
+
+.cal-dot.open {
+  background: var(--accent);
+}
+
+.cal-dot.done {
+  background: var(--text-faint);
+}
+
+.day-list {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--chip-bg);
+}
+
+.day-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.day-title {
+  color: var(--text-title);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.day-count {
+  font-size: 14px;
+}
+
+.day-empty {
+  padding: 16px 0;
+  font-size: 14px;
+}
+
+.day-tasks {
+  position: relative;
+}
+
+.day-task {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 40px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.day-task:hover {
+  background: var(--bg-hover);
+}
+
+.day-task .check {
+  width: 36px;
+  height: 40px;
+}
+
+.day-task .check-box {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+}
+
+.day-task .check-box .lucide {
+  width: 12px;
+  height: 12px;
+}
+
+.day-task-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.day-task.done .day-task-title {
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+
+.day-task .chip {
+  flex: none;
+  margin-right: 4px;
+}
+
+.progress {
+  height: 4px;
+  margin-top: 8px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--progress-track);
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  transition: width 300ms ease-out;
+}
+
+/* Headings */
+.greeting-hello {
+  font-size: 20px;
+}
+
+.greeting-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+/* 22px 굵은 글자는 큰 글자 기준 3:1을 넘어 포인트 컬러를 쓸 수 있다(3.4:1). */
+.progress-percent {
+  flex: none;
+  color: var(--accent);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.greeting-title {
+  color: var(--text-title);
+  font-size: clamp(32px, 5vw, 44px);
+  font-weight: 750;
+  line-height: 1.15;
+}
+
+.view-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 48px;
+}
+
+.view-title:focus {
+  outline: none;
+}
+
+.view-title {
+  color: var(--text-title);
+  font-size: 28px;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+/* Banners */
+.notice,
+.intro {
+  margin-top: 24px;
+  border-radius: var(--radius-card);
+  background: var(--bg-soft);
+}
+
+.notice {
+  padding: 12px 16px;
+  background: var(--chip-late-bg);
+  color: var(--chip-late-text);
+  font-size: 14px;
+}
+
+.intro {
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+}
+
+.intro-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Controls */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--radius-full);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.button.primary {
+  background: var(--accent-strong);
+  color: var(--on-accent);
+}
+
+.button.primary:hover {
+  background: var(--accent-strong-hover);
+}
+
+.button.primary:disabled {
+  background: var(--chip-bg);
+  color: var(--text-body);
+  cursor: not-allowed;
+}
+
+.button.outline {
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--chip-bg);
+  color: var(--text-title);
+}
+
+.button.outline:hover {
+  background: var(--bg-hover);
+}
+
+.button.small {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+.button.danger {
+  background: var(--chip-late-text);
+  color: var(--bg);
+}
+
+.button.text-danger {
+  background: transparent;
+  color: var(--chip-late-text);
+}
+
+.button.text-danger:hover {
+  background: var(--chip-late-bg);
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-body);
+}
+
+.icon-button:hover {
+  background: var(--chip-bg);
+  color: var(--text-title);
+}
+
+.field {
+  height: var(--control-height);
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--control-radius);
+  background: var(--bg-soft);
+  color: var(--text-title);
+}
+
+.field:focus-visible {
+  outline-offset: 0;
+}
+
+.field::placeholder {
+  color: var(--text-body);
+  opacity: 1;
+}
+
+.dropdown {
+  position: relative;
+  min-width: 0;
+}
+
+.dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--control-height);
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--control-radius);
+  background: var(--bg-soft);
+  max-width: 100%;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.dropdown-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dropdown-trigger:hover {
+  background: var(--bg-hover);
+}
+
+.dropdown-panel {
+  position: absolute;
+  z-index: 5;
+  width: 220px;
+  margin-top: 6px;
+  padding: 8px;
+  border-radius: var(--radius-card);
+  background: var(--bg);
+  box-shadow: 0 2px 6px rgb(42 45 58 / 8%), 0 12px 32px rgb(42 45 58 / 14%);
+}
+
+.dropdown-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 14px;
+  text-align: left;
+}
+
+.option-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dropdown-option:hover {
+  background: var(--bg-hover);
+}
+
+.dropdown-option[aria-pressed='true'] {
+  color: var(--text-title);
+  font-weight: 650;
+}
+
+.custom-date {
+  display: grid;
+  gap: 8px;
+  padding: 4px;
+}
+
+.dropdown-panel .custom-date .field {
+  width: 100%;
+  background: var(--bg-soft);
+}
+
+/* Composer */
+.composer,
+.edit-form {
+  display: grid;
+  /* 긴 선택 값이 칸을 늘리지 않고 줄임표로 줄어들게 한다. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.composer {
+  margin-top: 20px;
+  padding: 16px;
+  border-radius: var(--radius-card);
+  background: var(--bg);
+  box-shadow: var(--shadow-card);
+}
+
+.composer > .field {
+  width: 100%;
+}
+
+/* 왼쪽 묶음은 양 끝 정렬의 왼쪽에서 줄어들고, 오른쪽 버튼은 줄어들지 않는다. */
+.form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.form-options,
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.form-options {
+  min-width: 0;
+}
+
+.form-actions {
+  flex: none;
+  margin-left: auto;
+}
+
+.composer .button,
+.edit-form .button {
+  flex-shrink: 0;
+  min-width: 64px;
+  height: var(--control-height);
+  min-height: var(--control-height);
+  padding: 0 16px;
+  border-radius: var(--control-radius);
+}
+
+.form-combined {
+  display: none;
+  min-width: 0;
+}
+
+.combined-trigger {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  height: var(--control-height);
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--control-radius);
+  background: var(--bg-soft);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.combined-date {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.combined-trigger:hover {
+  background: var(--bg-hover);
+}
+
+/* 할 일 추가 카드와 수정 영역이 같은 화면 폭에서 함께 바뀐다. */
+@media (max-width: 599px) {
+  .form-options {
+    display: none;
+  }
+
+  .form-combined {
+    display: block;
+  }
+
+  .task-list .task.editing {
+    padding: 8px 4px;
+  }
+}
+
+.sheet {
+  width: 100%;
+  max-width: 100%;
+  max-height: 85vh;
+  margin: auto 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  background: var(--bg);
+  color: var(--text-body);
+  overscroll-behavior: contain;
+  animation: sheet-up 200ms ease-out;
+}
+
+.sheet::backdrop {
+  background: var(--backdrop);
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+.sheet-body {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 20px 16px 16px;
+}
+
+.sheet-title {
+  margin: 16px 0 4px;
+  padding: 0 12px;
+  color: var(--text-title);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.sheet-title:first-child {
+  margin-top: 0;
+}
+
+.sheet-done {
+  width: 100%;
+  margin-top: 16px;
+}
+
+.status {
+  min-height: 20px;
+  margin: 20px 0;
+  font-size: 14px;
+}
+
+/* Tasks */
+.task-list {
+  /* 줄 위치(offsetTop)를 목록 기준으로 재기 위해 필요하다. */
+  position: relative;
+  padding: 8px;
+  border-radius: var(--radius-card);
+  background: var(--bg);
+  box-shadow: var(--shadow-card);
+}
+
+.task {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 12px;
+}
+
+.task + .task {
+  position: relative;
+  margin-top: 1px;
+}
+
+.task + .task::before {
+  content: '';
+  position: absolute;
+  inset: -1px 8px auto;
+  height: 1px;
+  background: var(--line);
+}
+
+.task:hover {
+  background: var(--bg-hover);
+}
+
+.task.editing {
+  display: block;
+  padding: 12px;
+  background: var(--bg);
+}
+
+.task.editing > .edit-form > .field {
+  width: 100%;
+  background: var(--bg-soft);
+}
+
+.check {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  cursor: pointer;
+}
+
+.check input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.check-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--text-body);
+  border-radius: 7px;
+  color: var(--on-accent);
+  transition: background-color 120ms ease-out;
+}
+
+.check-box .lucide {
+  stroke-width: 3;
+}
+
+.check input:checked + .check-box {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.check input:focus-visible + .check-box {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.task-body {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 0;
+}
+
+.task.done .task-title {
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+
+.task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--chip-bg);
+  color: var(--text-body);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.chip-today {
+  background: var(--chip-today-bg);
+  color: var(--chip-today-text);
+}
+
+.chip-late {
+  background: var(--chip-late-bg);
+  color: var(--chip-late-text);
+}
+
+.task-actions {
+  display: flex;
+  flex: none;
+}
+
+.task.trashed {
+  flex-wrap: wrap;
+  padding: 12px;
+}
+
+.trash-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+}
+
+.deleted-at {
+  align-self: center;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.toast-region {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  z-index: 40;
+  transform: translateX(-50%);
+}
+
+.toast {
+  padding: 12px 20px;
+  border-radius: var(--radius-full);
+  background: var(--text-title);
+  box-shadow: var(--shadow-card);
+  color: var(--bg);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.confirm-body {
+  padding: 24px;
+}
+
+.confirm {
+  width: min(420px, calc(100vw - 32px));
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--bg);
+  box-shadow: 0 12px 40px rgb(42 45 58 / 20%);
+  color: var(--text-body);
+}
+
+.confirm::backdrop {
+  background: var(--backdrop);
+}
+
+.confirm-title {
+  margin-bottom: 8px;
+  color: var(--text-title);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.task-group + .task-group {
+  margin-top: 32px;
+}
+
+.group-title {
+  margin-bottom: 12px;
+  color: var(--text-title);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.empty {
+  padding: 48px 24px;
+  border-radius: var(--radius-card);
+  background: var(--bg-soft);
+  text-align: center;
+}
+
+.calendar-fab {
+  display: none;
+}
+
+/* 달력 패널을 나란히 둘 폭이 안 되면 떠 있는 버튼과 오른쪽 서랍으로 바꾼다. */
+@media (max-width: 1279px) {
+  .app {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+
+  .panel {
+    position: fixed;
+    inset: 0 0 0 auto;
+    align-self: stretch;
+    z-index: 30;
+    width: min(400px, 90vw);
+    height: auto;
+    padding: 16px 28px 32px;
+    overscroll-behavior: contain;
+    border-radius: var(--radius-card) 0 0 var(--radius-card);
+    visibility: hidden;
+    transform: translateX(100%);
+    transition:
+      transform 180ms ease-out,
+      visibility 180ms;
+  }
+
+  /* 열 때는 바로 보이게 해야 focus()가 먹는다. */
+  .panel.open {
+    visibility: visible;
+    transform: none;
+    transition: transform 180ms ease-out;
+  }
+
+  .panel-head {
+    margin-right: -12px;
+  }
+
+  .panel-head .icon-button {
+    display: inline-flex;
+    color: var(--text-title);
+  }
+
+  .main {
+    padding-bottom: 112px;
+  }
+
+  .calendar-fab {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 15;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border: 0;
+    border-radius: var(--radius-full);
+    background: var(--accent);
+    box-shadow: 0 2px 6px rgb(42 45 58 / 16%), 0 8px 24px rgb(42 45 58 / 20%);
+    color: var(--on-accent);
+  }
+
+  .calendar-fab:hover {
+    background: var(--accent-strong);
+  }
+
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    background: var(--backdrop);
+  }
+}
+
+/* Mobile */
+@media (max-width: 840px) {
+  .app {
+    display: block;
+  }
+
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 16px 4px 4px;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg);
+  }
+
+  .topbar .icon-button {
+    color: var(--text-title);
+  }
+
+  .main {
+    padding: 28px 16px 112px;
+  }
+
+  .topbar .brand {
+    font-size: 22px;
+  }
+
+  .view-head {
+    margin-top: 40px;
+  }
+
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    align-self: stretch;
+    z-index: 30;
+    width: min(300px, 85vw);
+    height: auto;
+    border-right: 0;
+    border-radius: 0 var(--radius-card) var(--radius-card) 0;
+    visibility: hidden;
+    transform: translateX(-100%);
+    transition:
+      transform 180ms ease-out,
+      visibility 180ms;
+  }
+
+  .sidebar.open {
+    visibility: visible;
+    transform: none;
+    transition: transform 180ms ease-out;
+  }
+
+  .sidebar-head {
+    padding-right: 0;
+  }
+
+  .sidebar-head .drawer-close {
+    display: inline-flex;
+    color: var(--text-title);
+  }
+
+  .task-actions .icon-button {
+    width: 36px;
+  }
+
+  .check {
+    width: 36px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
