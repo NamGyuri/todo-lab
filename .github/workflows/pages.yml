@@ -25,16 +25,15 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: planner/package-lock.json
       - run: npm ci
-        working-directory: web
+        working-directory: planner
       - run: npm run build
-        working-directory: web
+        working-directory: planner
         env:
-          VITE_DEMO: 'true'
           VITE_BASE: /todo-lab/
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: web/dist
+          path: planner/dist
       - id: deployment
         uses: actions/deploy-pages@v4
